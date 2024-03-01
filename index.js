@@ -7,22 +7,32 @@ const port = 3005;
 app.use(cors());
 
 app.get("/stream-file", (req, res) => {
-  const filePath = "./writeFile.txt";
-  const fileStream = fs.createReadStream(filePath, { highWaterMark: 16000 });
+  const readFilePath = "./readFile.txt";
+  const writeFilePath = "./writeFile.txt";
+  const readStream = fs.createReadStream(readFilePath, { highWaterMark: 100 });
+  const writeStream = fs.createWriteStream(writeFilePath);
 
   res.setHeader("Content-Type", "text/event-stream");
   res.setHeader("Cache-Control", "no-cache");
   res.setHeader("Connection", "keep-alive");
 
-  fileStream.on("data", (chunk) => {
+  readStream.on("data", (chunk) => {
     res.write(`data: ${chunk.toString("utf-8")}\n\n`);
+    const isEmpty = writeStream.write(chunk.toString("utf-8"));
+    if (!isEmpty) {
+      readStream.pause();
+      writeStream.on("drain", () => {
+        readStream.resume();
+      });
+    }
   });
 
-  fileStream.on("end", () => {
+  readStream.on("end", () => {
     console.log("end");
     res.end();
   });
-  fileStream.on("error", () => {
+
+  readStream.on("error", () => {
     console.log("Error in file");
     res.status(500).send("Server error");
   });
